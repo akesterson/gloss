@@ -147,7 +147,7 @@ function gloss_wiki
 		--replace 2>&1)
 	    RC=$?
 	    err="${err}${newerr}"
-	    if [[ $? -ne 0 ]]; then
+	    if [[ $RC -ne 0 ]]; then
 		${format}_testcase 'confluence:publish' "${cmdarg_cfg['wiki_dir']}/$page" 0 "atlassian-cli" "$(echo \"$err\" | head -n 1)" "$(echo $err)"
 	    else
 		${format}_testcase 'confluence:publish' "${cmdarg_cfg['wiki_dir']}/$page" 0
@@ -181,12 +181,10 @@ function main()
     format=${cmdarg_cfg['format']}
     ${format}_header
     gloss_man
-    RC=$?
     gloss_wiki
-    RC=$((RC + $?))
     ${format}_footer
 
-    exit $RC
+    exit $(eval "echo "'$'"$(echo ${cmdarg_cfg['format']} | tr 'a-z' 'A-Z')_FAILURES")
 }
 
 main "$@"
