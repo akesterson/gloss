@@ -2,11 +2,9 @@ VERSION:=$(shell if [ -d .git ]; then bash -c 'gitversion.sh | grep "^MAJOR=" | 
 RELEASE:=$(shell if [ -d .git ]; then bash -c 'gitversion.sh | grep "^BUILD=" | cut -d = -f 2'; else source version.sh && echo $$BUILD ; fi)
 DISTFILE=./dist/gloss-$(VERSION)-$(RELEASE).tar.gz
 SPECFILE=gloss.spec
-SRPM=gloss-$(VERSION)-$(RELEASE).src.rpm
 ifndef RHEL_VERSION
 	RHEL_VERSION=5
 endif
-RPM=gloss-$(VERSION)-$(RELEASE).noarch.rpm
 ifeq ($(RHEL_VERSION),5)
         MOCKFLAGS=--define "_source_filedigest_algorithm md5" --define "_binary_filedigest_algorithm md5"
 endif
@@ -15,6 +13,10 @@ ifndef PREFIX
 	PREFIX=''
 endif
 
+RHEL_RELEASE:=$(RELEASE).el$(RHEL_VERSION)
+SRPM=gloss-$(VERSION)-$(RHEL_RELEASE).src.rpm
+RPM=gloss-$(VERSION)-$(RHEL_RELEASE).noarch.rpm
+RHEL_DISTFILE=./dist/gloss-$(VERSION)-$(RHEL_RELEASE).tar.gz
 DISTFILE_DEPS=$(shell find . -type f | grep -Ev '\.git|\./dist/|$(DISTFILE)')
 
 all: ./dist/$(RPM)
@@ -46,13 +48,18 @@ $(DISTFILE): version.sh
 	rsync -aWH . --exclude=.git --exclude=dist ./dist/gloss-$(VERSION)-$(RELEASE)/
 	cd dist && tar -czvf ../$@ gloss-$(VERSION)-$(RELEASE)
 
-./dist/$(SRPM): $(DISTFILE)
+$(RHEL_DISTFILE): $(DISTFILE)
+	cd dist && \
+		cp -R gloss-$(VERSION)-$(RELEASE) gloss-$(VERSION)-$(RHEL_RELEASE) && \
+		tar -czvf ../$@ gloss-$(VERSION)-$(RHEL_RELEASE)
+
+./dist/$(SRPM): $(RHEL_DISTFILE)
 	rm -fr ./dist/$(SRPM)
-	mock --buildsrpm $(MOCKFLAGS) --spec $(SPECFILE) --sources ./dist/ --resultdir ./dist/ --define "version $(VERSION)" --define "release $(RELEASE)"
+	mock --verbose -r epel-$(RHEL_VERSION)-noarch --buildsrpm $(MOCKFLAGS) --spec $(SPECFILE) --sources ./dist/ --resultdir ./dist/ --define "version $(VERSION)" --define "release $(RHEL_RELEASE)"
 
 ./dist/$(RPM): ./dist/$(SRPM)
 	rm -fr ./dist/$(RPM)
-	mock -r epel-$(RHEL_VERSION)-noarch ./dist/$(SRPM) --resultdir ./dist/ --define "version $(VERSION)" --define "release $(RELEASE)"
+	mock --verbose -r epel-$(RHEL_VERSION)-noarch ./dist/$(SRPM) --resultdir ./dist/ --define "version $(VERSION)" --define "release $(RHEL_RELEASE)"
 
 uninstall:
 	rm -f $(PREFIX)/usr/bin/gloss.sh
